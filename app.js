@@ -70,6 +70,7 @@
     let changed = false;
     const t = todayStr();
     for (const it of items) {
+      if (!it.nextDate) continue;
       let guard = 0;
       while (it.nextDate < t && guard < 600) {
         it.nextDate = it.cycle === 'yearly' ? addYears(it.nextDate, 1) : addMonthsClamped(it.nextDate, 1);
@@ -229,12 +230,13 @@
     $('#sum-month').textContent = items.length ? yen(monthTotal) : '¥0';
     $('#sum-year').textContent = items.length ? yen(yearTotal) : '¥0';
 
-    if (items.length === 0) {
+    const withDate = items.filter(it => it.nextDate);
+    if (withDate.length === 0) {
       $('#sum-next-value').textContent = '−';
-      $('#sum-next-label').textContent = '登録なし';
+      $('#sum-next-label').textContent = '更新日未設定';
       return;
     }
-    const sorted = [...items].sort((a, b) => a.nextDate.localeCompare(b.nextDate));
+    const sorted = [...withDate].sort((a, b) => a.nextDate.localeCompare(b.nextDate));
     const next = sorted[0];
     const d = daysUntil(next.nextDate);
     $('#sum-next-value').textContent = d <= 0 ? '本日' : `あと${d}日`;
@@ -273,13 +275,23 @@
       </div>`;
       return;
     }
-    const sorted = [...items].sort((a, b) => a.nextDate.localeCompare(b.nextDate));
+    const sorted = [...items].sort((a, b) => {
+      if (a.nextDate && b.nextDate) return a.nextDate.localeCompare(b.nextDate);
+      if (a.nextDate) return -1;
+      if (b.nextDate) return 1;
+      return a.name.localeCompare(b.name);
+    });
     wrap.innerHTML = sorted.map(it => {
-      const d = daysUntil(it.nextDate);
-      let badgeClass = 'badge-normal', badgeText = `あと${d}日`;
-      if (d <= 0) { badgeClass = 'badge-danger'; badgeText = '本日更新'; }
-      else if (d <= 3) { badgeClass = 'badge-danger'; badgeText = `あと${d}日`; }
-      else if (d <= 7) { badgeClass = 'badge-warn'; badgeText = `あと${d}日`; }
+      let badgeClass = '', badgeText = '';
+      if (it.nextDate) {
+        const d = daysUntil(it.nextDate);
+        badgeClass = 'badge-normal'; badgeText = `あと${d}日`;
+        if (d <= 0) { badgeClass = 'badge-danger'; badgeText = '本日更新'; }
+        else if (d <= 3) { badgeClass = 'badge-danger'; }
+        else if (d <= 7) { badgeClass = 'badge-warn'; }
+      } else {
+        badgeClass = 'badge-normal'; badgeText = '更新日未設定';
+      }
       const hasCred = it.cred && (it.cred.id || it.cred.pw);
       return `
       <article class="card" style="--cat-color:${colorForCategory(it.category)}" data-id="${it.id}">
@@ -325,7 +337,6 @@
     $('#f-amount').value = it ? it.amount : '';
     $('#f-cycle').value = it ? it.cycle : 'monthly';
     $('#f-category').value = it ? it.category : '';
-    $('#f-date').value = it ? it.nextDate : todayStr();
     $('#f-payment').value = it ? (it.payment || '') : '';
     $('#f-memo').value = it ? (it.memo || '') : '';
     $('#f-id').value = '';
@@ -344,14 +355,13 @@
     const amount = parseFloat($('#f-amount').value);
     const cycle = $('#f-cycle').value;
     const category = $('#f-category').value.trim() || 'その他';
-    const nextDate = $('#f-date').value;
     const payment = $('#f-payment').value.trim();
     const memo = $('#f-memo').value.trim();
     const idVal = $('#f-id').value;
     const pwVal = $('#f-pw').value;
 
-    if (!name || isNaN(amount) || amount < 0 || !nextDate) {
-      toast('名称・金額・次回更新日を確認してください');
+    if (!name || isNaN(amount) || amount < 0) {
+      toast('名称と金額を確認してください');
       return;
     }
 
@@ -368,9 +378,9 @@
 
       if (editingId) {
         const it = items.find(x => x.id === editingId);
-        Object.assign(it, { name, amount, cycle, category, nextDate, payment, memo, cred });
+        Object.assign(it, { name, amount, cycle, category, payment, memo, cred });
       } else {
-        items.push({ id: uid(), name, amount, cycle, category, nextDate, payment, memo, cred });
+        items.push({ id: uid(), name, amount, cycle, category, payment, memo, cred });
       }
       saveItems();
       renderAll();
