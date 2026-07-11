@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E3A636">
+<title>サブスク管理</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" href="./icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="eyebrow">SUBSCRIPTION LEDGER · LOCAL ONLY</div>
+  <div class="header-row">
+    <h1>サブスク管理</h1>
+    <div class="header-actions">
+      <button id="data-toggle" type="button">⬇️ データ</button>
+      <button id="theme-toggle" type="button">🌙 ダーク</button>
+    </div>
+  </div>
+  <hr class="header-rule">
+</header>
+
+<div class="gauge-cluster">
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-month">¥0</div>
+    <div class="gauge-label">月額換算 合計</div>
+  </div>
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-year">¥0</div>
+    <div class="gauge-label">年額換算 合計</div>
+  </div>
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-next-value">−</div>
+    <div class="gauge-label" id="sum-next-label">次回更新</div>
+  </div>
+</div>
+
+<section class="section">
+  <h2>カテゴリ別内訳(月額換算)</h2>
+  <div id="category-breakdown"></div>
+</section>
+
+<section class="section">
+  <h2 id="count-label">登録中のサブスク(0件)</h2>
+  <div id="sub-list"></div>
+</section>
+
+<button id="fab-add" type="button" aria-label="サブスクを追加">＋</button>
+<div id="toast"></div>
+<div id="overlay"></div>
+
+<!-- 詳細表示モーダル -->
+<div class="modal" id="modal-detail">
+  <div class="modal-head">
+    <h2 id="d-name">詳細</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <div class="detail-amount mono" id="d-amount"></div>
+  <div class="detail-rows">
+    <div class="detail-row"><span class="detail-label">カテゴリ</span><span id="d-category"></span></div>
+    <div class="detail-row"><span class="detail-label">次回更新日</span><span id="d-nextdate"></span></div>
+    <div class="detail-row"><span class="detail-label">支払い方法</span><span id="d-payment"></span></div>
+  </div>
+  <div class="detail-memo" id="d-memo-wrap">
+    <div class="detail-label">メモ(解約手順など)</div>
+    <p id="d-memo"></p>
+  </div>
+  <div class="modal-actions">
+    <button type="button" class="btn-danger" id="d-delete">🗑️ 削除</button>
+    <button type="button" class="btn-secondary modal-close">閉じる</button>
+    <button type="button" class="btn-primary" id="d-edit">✏️ 編集する</button>
+  </div>
+</div>
+
+<!-- 追加/編集モーダル -->
+<div class="modal" id="modal-form">
+  <div class="modal-head">
+    <h2 id="form-title">サブスクを追加</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <form id="sub-form" novalidate>
+    <div class="field">
+      <label for="f-name">名称</label>
+      <input id="f-name" type="text" placeholder="例: Netflix">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-amount">金額(円)</label>
+        <input id="f-amount" type="number" min="0" step="1" placeholder="1490">
+      </div>
+      <div class="field">
+        <label for="f-cycle">支払い周期</label>
+        <select id="f-cycle">
+          <option value="monthly">月額</option>
+          <option value="yearly">年額</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-category">カテゴリ</label>
+        <input id="f-category" type="text" list="category-list" placeholder="例: 動画">
+        <datalist id="category-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="f-date">次回更新日(任意)</label>
+        <input id="f-date" type="date">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-payment">支払い方法</label>
+      <input id="f-payment" type="text" placeholder="例: JCBカード">
+    </div>
+    <div class="field">
+      <label for="f-memo">メモ(解約手順など)</label>
+      <textarea id="f-memo" placeholder="例: マイページ→契約管理→解約 から手続き"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary modal-close">キャンセル</button>
+      <button type="submit" class="btn-primary">保存する</button>
+    </div>
+  </form>
+</div>
+
+<!-- データのバックアップ/復元モーダル -->
+<div class="modal" id="modal-data">
+  <div class="modal-head">
+    <h2>データのバックアップ</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <p class="small muted">JSONは復元用のフルバックアップです。CSVは一覧の確認・印刷用です。</p>
+
+  <button type="button" class="btn-primary btn-block" id="export-json">📦 JSONでバックアップを書き出す</button>
+  <button type="button" class="btn-secondary btn-block" id="export-csv">📄 CSVで一覧を書き出す</button>
+
+  <hr class="header-rule">
+
+  <div class="field">
+    <label for="import-file">バックアップ(JSON)から復元</label>
+    <input type="file" id="import-file" accept="application/json,.json">
+    <div class="field-note">⚠️ 復元すると、現在登録されている内容はすべて置き換えられます(取り消せません)。</div>
+  </div>
+
+  <div class="modal-actions">
+    <button type="button" class="btn-secondary modal-close">閉じる</button>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    var dl = document.getElementById('category-list');
+    ['動画', '音楽', 'クラウド', 'AI・ツール', '通信', 'ジム・健康', 'その他'].forEach(function(c){
+      var o = document.createElement('option'); o.value = c; dl.appendChild(o);
+    });
+  });
+</script>
+<script src="./app.js"></script>
+</body>
+</html>
