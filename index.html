@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E3A636">
+<title>サブスク管理</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" href="./icon-192.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="eyebrow">SUBSCRIPTION LEDGER · LOCAL ONLY</div>
+  <div class="header-row">
+    <h1>サブスク管理</h1>
+    <div class="header-actions">
+      <button id="data-toggle" type="button">⬇️ データ</button>
+      <button id="lock-toggle" type="button">🔒 ロック中</button>
+      <button id="theme-toggle" type="button">🌙 ダーク</button>
+    </div>
+  </div>
+  <hr class="header-rule">
+</header>
+
+<div class="gauge-cluster">
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-month">¥0</div>
+    <div class="gauge-label">月額換算 合計</div>
+  </div>
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-year">¥0</div>
+    <div class="gauge-label">年額換算 合計</div>
+  </div>
+  <div class="gauge">
+    <div class="gauge-value mono" id="sum-next-value">−</div>
+    <div class="gauge-label" id="sum-next-label">次回更新</div>
+  </div>
+</div>
+
+<section class="section">
+  <h2>カテゴリ別内訳(月額換算)</h2>
+  <div id="category-breakdown"></div>
+</section>
+
+<section class="section">
+  <h2 id="count-label">登録中のサブスク(0件)</h2>
+  <div id="sub-list"></div>
+</section>
+
+<button id="fab-add" type="button" aria-label="サブスクを追加">＋</button>
+<div id="toast"></div>
+<div id="overlay"></div>
+
+<!-- 追加/編集モーダル -->
+<div class="modal" id="modal-form">
+  <div class="modal-head">
+    <h2 id="form-title">サブスクを追加</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <form id="sub-form" novalidate>
+    <div class="field">
+      <label for="f-name">名称</label>
+      <input id="f-name" type="text" placeholder="例: Netflix" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-amount">金額(円)</label>
+        <input id="f-amount" type="number" min="0" step="1" placeholder="1490" required>
+      </div>
+      <div class="field">
+        <label for="f-cycle">支払い周期</label>
+        <select id="f-cycle">
+          <option value="monthly">月額</option>
+          <option value="yearly">年額</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-category">カテゴリ</label>
+        <input id="f-category" type="text" list="category-list" placeholder="例: 動画">
+        <datalist id="category-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="f-nextdate">次回更新日(任意)</label>
+        <input id="f-nextdate" type="date">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-payment">支払い方法</label>
+      <input id="f-payment" type="text" placeholder="例: 楽天カード">
+    </div>
+
+    <div class="field">
+      <label for="f-id">ID(任意・パスコードで保護)</label>
+      <input id="f-id" type="text" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="f-pw">パスワード(任意・パスコードで保護)</label>
+      <input id="f-pw" type="password" autocomplete="off">
+      <div class="field-note" id="f-cred-note"></div>
+    </div>
+
+    <div class="field">
+      <label for="f-memo">メモ(解約手順など)</label>
+      <textarea id="f-memo" placeholder="例: マイページ→契約管理→解約 から手続き"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="f-delete">削除</button>
+      <button type="button" class="btn-secondary modal-close">キャンセル</button>
+      <button type="submit" class="btn-primary">保存する</button>
+    </div>
+  </form>
+</div>
+
+<!-- パスコード新規設定モーダル -->
+<div class="modal" id="modal-setup">
+  <div class="modal-head">
+    <h2>マスターパスコードを設定</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <p class="small muted">ID・パスワードを保護するためのパスコードです。この端末のブラウザ内だけで使われ、どこにも送信されません。忘れると登録済みのID・パスワードは復元できないのでご注意ください。</p>
+  <div class="field">
+    <label for="setup-input1">パスコード(4文字以上)</label>
+    <input id="setup-input1" type="password" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="setup-input2">確認用に再入力</label>
+    <input id="setup-input2" type="password" autocomplete="off">
+  </div>
+  <div class="field-error" id="setup-error"></div>
+  <div class="modal-actions">
+    <button type="button" class="btn-secondary modal-close">キャンセル</button>
+    <button type="button" class="btn-primary" id="setup-submit">設定する</button>
+  </div>
+</div>
+
+<!-- パスコード入力(ロック解除)モーダル -->
+<div class="modal" id="modal-unlock">
+  <div class="modal-head">
+    <h2>パスコードを入力</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <div class="field">
+    <label for="unlock-input">マスターパスコード</label>
+    <input id="unlock-input" type="password" autocomplete="off">
+  </div>
+  <div class="field-error" id="unlock-error"></div>
+  <div class="modal-actions">
+    <button type="button" class="btn-secondary modal-close">キャンセル</button>
+    <button type="button" class="btn-primary" id="unlock-submit">ロックを解除</button>
+  </div>
+</div>
+
+<!-- 認証情報の表示モーダル -->
+<div class="modal" id="modal-reveal">
+  <div class="modal-head">
+    <h2 id="reveal-name">認証情報</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <div class="reveal-row">
+    <span class="muted small">ID</span>
+    <span class="val" id="reveal-id"></span>
+    <button type="button" id="copy-id">コピー</button>
+  </div>
+  <div class="reveal-row">
+    <span class="muted small">パスワード</span>
+    <span class="val" id="reveal-pw"></span>
+    <button type="button" id="copy-pw">コピー</button>
+  </div>
+  <p class="small muted">このウィンドウを閉じると表示は消えます。次回はもう一度パスコードが必要です。</p>
+  <div class="modal-actions">
+    <button type="button" class="btn-primary modal-close">閉じる</button>
+  </div>
+</div>
+
+<!-- データのバックアップ/復元モーダル -->
+<div class="modal" id="modal-data">
+  <div class="modal-head">
+    <h2>データのバックアップ</h2>
+    <button class="modal-close" type="button" aria-label="閉じる">✕</button>
+  </div>
+  <p class="small muted">JSONは復元用のフルバックアップです(ID・パスワードは暗号化されたまま含まれ、復元時は同じパスコードで開けます)。CSVは一覧の確認・印刷用で、ID・パスワードは含みません。</p>
+
+  <button type="button" class="btn-primary btn-block" id="export-json">📦 JSONでバックアップを書き出す</button>
+  <button type="button" class="btn-secondary btn-block" id="export-csv">📄 CSVで一覧を書き出す</button>
+
+  <hr class="header-rule">
+
+  <div class="field">
+    <label for="import-file">バックアップ(JSON)から復元</label>
+    <input type="file" id="import-file" accept="application/json,.json">
+    <div class="field-note">⚠️ 復元すると、現在登録されている内容はすべて置き換えられます(取り消せません)。</div>
+  </div>
+
+  <div class="modal-actions">
+    <button type="button" class="btn-secondary modal-close">閉じる</button>
+  </div>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
